@@ -6,7 +6,7 @@ void main() async {
   // This is BleServerFile included in the package, please download and add that file to your project and change the path
   String serverPath = "..\\lib\\assets\\BLEServer.exe";
 
-  await WinBle.initialize(enableLog: false, serverPath: serverPath);
+  await WinBle.initialize(serverPath: serverPath);
   print("WinBle initialized");
 
   WinBle.bleState.listen((event) {

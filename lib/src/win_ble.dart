@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
 import 'package:win_ble/src/models/ble_state.dart';
 import 'package:win_ble/src/utils/win_connector.dart';
 import 'package:win_ble/src/utils/win_helper.dart';
@@ -15,25 +16,25 @@ class WinBle {
   static bool _isInitialized = false;
   static final WinConnector _channel = WinConnector();
 
+  static bool get tracing => WinHelper.tracing;
+
+  static set tracing(bool val) => WinHelper.tracing = val;
+
   /// [Stream Controllers]
-  static StreamController<BleDevice> _scanStreamController =
-      StreamController.broadcast();
-  static StreamController<Map<String, dynamic>> _connectionStreamController =
-      StreamController.broadcast();
-  static StreamController _characteristicValueStreamController =
-      StreamController.broadcast();
-  static StreamController<BleState> _bleStateStreamController =
-      StreamController.broadcast();
+  static StreamController<BleDevice> _scanStreamController = StreamController.broadcast();
+  static StreamController<Map<String, dynamic>> _connectionStreamController = StreamController.broadcast();
+  static StreamController _characteristicValueStreamController = StreamController.broadcast();
+  static StreamController<BleState> _bleStateStreamController = StreamController.broadcast();
 
   /// make sure to [initialize] WinBle once before using it
   /// call [dispose] when Done
   static Future<void> initialize({
     required String serverPath,
-    bool enableLog = false,
   }) async {
     if (_isInitialized) throw "WinBle is already initialized";
     try {
-      WinHelper.showLog = enableLog;
+      WinHelper.logger = Logger("WinBle");
+
       await _channel.initialize(
         onData: _handleMessages,
         serverPath: serverPath,
@@ -52,7 +53,10 @@ class WinBle {
   }
 
   static void _handleMessages(message) {
-    WinHelper.printLog("Received Message : $message");
+    if (WinHelper.tracing) {
+      WinHelper.logger?.fine("Received Message: $message");
+    }
+
     switch (message["_type"]) {
       /// ScanResult events
       case "scanResult":
@@ -79,8 +83,7 @@ class WinBle {
       /// Handle characteristic value updates
       case "valueChangedNotification":
         String subscriptionKey = message["subscriptionId"]?.toString() ?? "";
-        Map<String, String>? data =
-            WinHelper.getDataFromSubscriptionKey(subscriptionKey);
+        Map<String, String>? data = WinHelper.getDataFromSubscriptionKey(subscriptionKey);
         if (data != null) {
           var value = message["value"];
           var result = {};
@@ -88,8 +91,7 @@ class WinBle {
           result.addAll({"value": value});
           _characteristicValueStreamController.add(result);
         } else {
-          WinHelper.printLog(
-              "Received Unknown Data from SubscriptionKey : $subscriptionKey");
+          WinHelper.logger?.warning("Received Unknown Data from SubscriptionKey : $subscriptionKey");
         }
         break;
     }
@@ -207,9 +209,7 @@ class WinBle {
   }) async {
     try {
       var result = await _channel.invokeMethod("isPaired", args: {
-        "device": forceRefresh
-            ? address.replaceAll(":", "")
-            : WinHelper.getDeviceFromAddress(address),
+        "device": forceRefresh ? address.replaceAll(":", "") : WinHelper.getDeviceFromAddress(address),
         "forceRefresh": forceRefresh,
       });
       return result != null && result;
@@ -249,8 +249,7 @@ class WinBle {
   }
 
   /// [discoverServices] will return a list of services List
-  static Future<List<String>> discoverServices(address,
-      {bool forceRefresh = false}) async {
+  static Future<List<String>> discoverServices(address, {bool forceRefresh = false}) async {
     List? services = await _channel.invokeMethod("services", args: {
       "device": WinHelper.getDeviceFromAddress(address),
       "forceRefresh": forceRefresh,
@@ -260,23 +259,17 @@ class WinBle {
 
   /// [discoverCharacteristics] will return a list of [BleCharacteristic]
   static Future<List<BleCharacteristic>> discoverCharacteristics(
-      {required String address,
-      required String serviceId,
-      bool forceRefresh = false}) async {
+      {required String address, required String serviceId, bool forceRefresh = false}) async {
     var data = await _channel.invokeMethod("characteristics", args: {
       "device": WinHelper.getDeviceFromAddress(address),
       "service": WinHelper.toWindowsUuid(serviceId),
       "forceRefresh": forceRefresh,
     });
-    return List<BleCharacteristic>.from(
-        data.map((e) => BleCharacteristic.fromJson(e)));
+    return List<BleCharacteristic>.from(data.map((e) => BleCharacteristic.fromJson(e)));
   }
 
   /// [read] will read characteristic value and returns a List<int>
-  static Future<List<int>> read(
-      {required String address,
-      required String serviceId,
-      required String characteristicId}) async {
+  static Future<List<int>> read({required String address, required String serviceId, required String characteristicId}) async {
     var data = await _channel.invokeMethod("read", args: {
       "device": WinHelper.getDeviceFromAddress(address),
       "service": WinHelper.toWindowsUuid(serviceId),
@@ -306,9 +299,7 @@ class WinBle {
   /// we can get update on [connectionStream]
   /// call [connectionStreamOf] to get value of specific characteristic
   static Future<void> subscribeToCharacteristic(
-      {required String address,
-      required String serviceId,
-      required String characteristicId}) async {
+      {required String address, required String serviceId, required String characteristicId}) async {
     await _channel.invokeMethod("subscribe", args: {
       "device": WinHelper.getDeviceFromAddress(address),
       "service": WinHelper.toWindowsUuid(serviceId),
@@ -324,9 +315,7 @@ class WinBle {
 
   /// [unSubscribeFromCharacteristic] will unsubscribe from characteristic , throws error if this characteristic is not subscribed
   static Future<void> unSubscribeFromCharacteristic(
-      {required String address,
-      required String serviceId,
-      required String characteristicId}) async {
+      {required String address, required String serviceId, required String characteristicId}) async {
     await _channel.invokeMethod("unsubscribe", args: {
       "device": WinHelper.getDeviceFromAddress(address),
       "service": WinHelper.toWindowsUuid(serviceId),
@@ -342,21 +331,17 @@ class WinBle {
   static Stream<BleDevice> get scanStream => _scanStreamController.stream;
 
   /// we can get [connectionStream] to get update on connection
-  static Stream<Map<String, dynamic>> get connectionStream =>
-      _connectionStreamController.stream;
+  static Stream<Map<String, dynamic>> get connectionStream => _connectionStreamController.stream;
 
   /// [bleState] is a stream to get current Ble Status
   static Stream<BleState> get bleState => _bleStateStreamController.stream;
 
   /// [characteristicValueStream] is a stream to get characteristic value updates
-  static Stream get characteristicValueStream =>
-      _characteristicValueStreamController.stream;
+  static Stream get characteristicValueStream => _characteristicValueStreamController.stream;
 
   /// to get [connection update] for a specific device
   static Stream<bool> connectionStreamOf(String address) =>
-      _connectionStreamController.stream
-          .where((event) => event["device"] == address)
-          .map((event) => event["connected"]);
+      _connectionStreamController.stream.where((event) => event["device"] == address).map((event) => event["connected"]);
 
   /// to get update of a [specific characteristic]
   static Stream characteristicValueStreamOf({
@@ -366,9 +351,7 @@ class WinBle {
   }) {
     return _characteristicValueStreamController.stream
         .where((event) =>
-            event["address"] == address &&
-            event["serviceId"] == serviceId &&
-            event["characteristicId"] == characteristicId)
+            event["address"] == address && event["serviceId"] == serviceId && event["characteristicId"] == characteristicId)
         .map((event) => event["value"]);
   }
 }

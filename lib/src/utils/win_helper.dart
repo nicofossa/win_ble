@@ -1,24 +1,21 @@
+import 'package:logging/logging.dart';
+
 /// This class is used to store the device map and subscription map
 /// and some other helper methods
 class WinHelper {
   static Map deviceMap = {};
   static Map<String, Map<String, String>> subscriptions = {};
-  static bool showLog = false;
-
-  /// enableLog in [initialize] method
-  static void printLog(log) {
-    // ignore: avoid_print
-    if (showLog) print(log);
-  }
+  static Logger? logger;
+  static bool tracing = false;
 
   static String toWindowsUuid(String uuid) => "{$uuid}";
 
-  static String fromWindowsUuid(String uuid) =>
-      uuid.replaceAll("{", "").replaceAll("}", "");
+  static String fromWindowsUuid(String uuid) => uuid.replaceAll("{", "").replaceAll("}", "");
 
   static String getDeviceFromAddress(String address) {
     if (deviceMap[address] == null) {
-      throw "Device not found !";
+      logger?.shout("Device not found! address: $address");
+      throw "Device not found!";
     } else {
       return deviceMap[address];
     }
@@ -44,8 +41,8 @@ class WinHelper {
         }
       });
       return data.isEmpty ? null : data;
-    } catch (e) {
-      printLog("Error in _getSubscriptionKey :  $e");
+    } catch (e, s) {
+      logger?.shout("Error in _getSubscriptionKey", e, s);
       return null;
     }
   }

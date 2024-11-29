@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:win_ble/src/utils/win_helper.dart';
+
 /// A class that connects to the BLE server and sends/receives messages
 /// Make sure to call [initialize] before using [invokeMethod]
 class WinConnector {
@@ -36,6 +38,10 @@ class WinConnector {
     Map<String, dynamic>? args,
     bool waitForResult = true,
   }) async {
+    if (WinHelper.tracing) {
+      WinHelper.logger?.fine("Invoking $method($args)");
+    }
+
     Map<String, dynamic> result = args ?? {};
     // If we don't need to wait for the result, just send the message and return
     if (!waitForResult) {
@@ -65,7 +71,7 @@ class WinConnector {
         _responseStreamController.add({
           "id": response["_id"],
           "result": response["result"],
-          "error": response["error"]
+          "error": response["error"],
         });
       }
     } catch (_) {}
@@ -97,8 +103,12 @@ class WinConnector {
     List<dynamic> list = [];
     var cursor = 0;
     while (cursor < data.length) {
-      var length = _fromBytesToInt32(event[cursor + 0], event[cursor + 1],
-          event[cursor + 2], event[cursor + 3]);
+      var length = _fromBytesToInt32(
+        event[cursor + 0],
+        event[cursor + 1],
+        event[cursor + 2],
+        event[cursor + 3],
+      );
       cursor += 4;
       String payload = data.substring(cursor, cursor + length);
       cursor += length;

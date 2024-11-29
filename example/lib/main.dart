@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:win_ble/win_ble.dart';
 import 'package:win_ble/win_file.dart';
 import 'package:win_ble_example/device_info.dart';
+import 'package:logging/logging.dart';
 
 void main() {
   runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: MyApp()));
@@ -28,7 +29,6 @@ class _MyAppState extends State<MyApp> {
   void initialize() async {
     await WinBle.initialize(
       serverPath: await WinServer.path(),
-      enableLog: true,
     );
     print("WinBle Initialized: ${await WinBle.version()}");
   }
